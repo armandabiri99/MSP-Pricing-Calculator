@@ -11,6 +11,7 @@ A lightweight SwiftUI iOS application that lets Managed‑Service Providers (MSP
 * **MVVM architecture** – clearly separated *Models*, *ViewModels*, *Views*.
 * **SwiftUI previews** – tweak UI in real time with `#Preview` providers.
 * **iCloud‑ready** – point the JSON loader to a remote URL to update prices over‑the‑air.
+* **Branded PDF quotes** – include your logo, company and customer names in an exported PDF.
 
 ---
 
@@ -36,6 +37,7 @@ $ open MSP\ Pricing\ Calculator.xcodeproj
 
 1. Select an **iPhone simulator** (e.g. *iPhone 16 Pro*).
 2. Press **⌘R**. The quote form appears with default pricing.
+3. In the **Info** section of the form, provide your company and customer names and pick a logo image. These details appear in the downloaded quote.
 
 ---
 
@@ -50,7 +52,14 @@ $ open MSP\ Pricing\ Calculator.xcodeproj
     { "code": "base_ws",      "name": "Workstation Support",      "unitPrice": 25  },
     { "code": "bkup_server",  "name": "Server Cloud Backup",       "unitPrice": 55  },
     { "code": "bkup_ws",      "name": "Workstation Cloud Backup",  "unitPrice": 16  },
-    { "code": "email_sec",    "name": "Advanced Email Security",   "unitPrice": 8   }
+    { "code": "email_sec",    "name": "Advanced Email Security",   "unitPrice": 8   },
+    { "code": "huntress",    "name": "Huntress Cybersecurity",      "unitPrice": 6   },
+    { "code": "webroot",     "name": "Webroot Cybersecurity",       "unitPrice": 4   },
+    { "code": "nvr_8",       "name": "NVR 8-Port",                  "unitPrice": 250 },
+    { "code": "nvr_16",      "name": "NVR 16-Port",                 "unitPrice": 350 },
+    { "code": "nvr_32",      "name": "NVR 32-Port",                 "unitPrice": 550 },
+    { "code": "nvr_64",      "name": "NVR 64-Port",                 "unitPrice": 750 },
+    { "code": "camera",      "name": "Security Camera",             "unitPrice": 120 }
   ]
 }
 ```
