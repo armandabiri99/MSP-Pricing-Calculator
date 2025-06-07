@@ -1,3 +1,8 @@
+//
+//  QuoteFormView.swift
+//  MSP Pricing Calculator
+//
+
 import SwiftUI
 import PhotosUI
 
@@ -8,18 +13,29 @@ private let intFormatter: NumberFormatter = {
 }()
 
 struct QuoteFormView: View {
-    @StateObject private var viewModel = QuoteViewModel()
+    // Live pricing comes from the shared store
+    @ObservedObject var store: PricingStore
+    @StateObject private var viewModel: QuoteViewModel
+
+    // logo picker UI state
     @State private var logoItem: PhotosPickerItem?
+
+    // --- init so we can pass the store into the ViewModel -------------
+    init(store: PricingStore) {
+        self.store      = store
+        _viewModel      = StateObject(wrappedValue: QuoteViewModel(config: store.config))
+    }
 
     var body: some View {
         Form {
+
             // ── MSP info ───────────────────────────────────────────────
             Section(header: Text("MSP")) {
                 TextField("Company Name", text: $viewModel.companyName)
 
                 PhotosPicker(selection: $logoItem, matching: .images) {
-                    if let image = viewModel.logoImage {
-                        Image(uiImage: image)
+                    if let img = viewModel.logoImage {
+                        Image(uiImage: img)
                             .resizable()
                             .frame(width: 60, height: 60)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -31,60 +47,24 @@ struct QuoteFormView: View {
                     guard let newItem else { return }
                     Task {
                         if let data = try? await newItem.loadTransferable(type: Data.self),
-                           let img = UIImage(data: data) {
-                            viewModel.logoImage = img
+                           let uiImg = UIImage(data: data) {
+                            viewModel.logoImage = uiImg
                         }
                     }
                 }
             }
 
-            // ── Customer info ──────────────────────────────────────────
+            // ── Customer info ─────────────────────────────────────────
             Section(header: Text("Customer")) {
                 TextField("Customer Name", text: $viewModel.customerName)
             }
 
-            // ── Device counts ─────────────────────────────────────────────
+            // ── Device counts ────────────────────────────────────────
             Section(header: Text("Devices")) {
-
-                Stepper(value: $viewModel.numServers, in: 0...100) {
-                    HStack {
-                        Text("Servers")
-                        Spacer()
-                        TextField("", value: $viewModel.numServers, formatter: intFormatter)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.numberPad)
-                    }
-                }
-
-                Stepper(value: $viewModel.numWorkstations, in: 0...1000) {
-                    HStack {
-                        Text("Workstations")
-                        Spacer()
-                        TextField("", value: $viewModel.numWorkstations, formatter: intFormatter)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.numberPad)
-                    }
-                }
-
-                Stepper(value: $viewModel.numEmailAccounts, in: 0...1000) {
-                    HStack {
-                        Text("Email Accounts")
-                        Spacer()
-                        TextField("", value: $viewModel.numEmailAccounts, formatter: intFormatter)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.numberPad)
-                    }
-                }
-
-                Stepper(value: $viewModel.numCameras, in: 0...1000) {
-                    HStack {
-                        Text("Cameras")
-                        Spacer()
-                        TextField("", value: $viewModel.numCameras, formatter: intFormatter)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.numberPad)
-                    }
-                }
+                deviceStepper("Servers",       value: $viewModel.numServers)
+                deviceStepper("Workstations",  value: $viewModel.numWorkstations)
+                deviceStepper("Email Accounts",value: $viewModel.numEmailAccounts)
+                deviceStepper("Cameras",       value: $viewModel.numCameras)
 
                 Picker("NVR", selection: $viewModel.selectedNvr) {
                     ForEach(0..<viewModel.nvrOptions.count, id: \.self) { idx in
@@ -93,16 +73,16 @@ struct QuoteFormView: View {
                 }
             }
 
-            // ── Add-ons ───────────────────────────────────────────────────
+            // ── Add-ons ───────────────────────────────────────────────
             Section(header: Text("Add-ons")) {
                 Toggle("Server Backup",       isOn: $viewModel.includeServerBackup)
                 Toggle("Workstation Backup",  isOn: $viewModel.includeWSBackup)
                 Toggle("Advanced Email Security", isOn: $viewModel.includeEmailSec)
-                Toggle("Huntress Cybersecurity", isOn: $viewModel.includeHuntress)
-                Toggle("Webroot Cybersecurity",  isOn: $viewModel.includeWebroot)
+                Toggle("Huntress Cybersecurity",  isOn: $viewModel.includeHuntress)
+                Toggle("Webroot Cybersecurity",   isOn: $viewModel.includeWebroot)
             }
 
-            // ── Total ─────────────────────────────────────────────────────
+            // ── Total & PDF ───────────────────────────────────────────
             Section {
                 HStack {
                     Spacer()
@@ -110,6 +90,7 @@ struct QuoteFormView: View {
                         .bold()
                     Spacer()
                 }
+
                 if let pdfURL = viewModel.generatePDF() {
                     ShareLink("Download Quote", item: pdfURL)
                 }
@@ -117,8 +98,22 @@ struct QuoteFormView: View {
         }
         .navigationTitle("Quote")
     }
+
+    // MARK: helper
+    @ViewBuilder
+    private func deviceStepper(_ label: String, value: Binding<Int>) -> some View {
+        Stepper(value: value, in: 0...1000) {
+            HStack {
+                Text(label)
+                Spacer()
+                TextField("", value: value, formatter: intFormatter)
+                    .multilineTextAlignment(.trailing)
+                    .keyboardType(.numberPad)
+            }
+        }
+    }
 }
 
 #Preview {
-    QuoteFormView()
+    QuoteFormView(store: PricingStore())
 }
