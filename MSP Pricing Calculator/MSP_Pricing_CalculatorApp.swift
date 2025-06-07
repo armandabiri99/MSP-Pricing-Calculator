@@ -2,24 +2,23 @@
 //  MSP_Pricing_CalculatorApp.swift
 //  MSP Pricing Calculator
 //
-//  Created by Arman Dabiri on 6/6/25.
-//
 
 import SwiftUI
 
 @main
 struct MSP_Pricing_CalculatorApp: App {
+    /// Shared store that owns the PricingConfig and publishes changes.
     @StateObject private var store = PricingStore()
 
     var body: some Scene {
         WindowGroup {
             TabView {
-                NavigationStack {
+                NavigationStack {                     // ── Quote tab
                     QuoteFormView(store: store)
                 }
                 .tabItem { Label("Quote", systemImage: "doc.plaintext") }
 
-                NavigationStack {
+                NavigationStack {                     // ── Settings tab
                     SettingsView(store: store)
                 }
                 .tabItem { Label("Settings", systemImage: "gear") }
