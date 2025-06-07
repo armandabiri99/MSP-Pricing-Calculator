@@ -19,7 +19,7 @@ struct MSP_Pricing_CalculatorApp: App {
                 .tabItem { Label("Quote", systemImage: "doc.plaintext") }
 
                 NavigationStack {                     // ── Settings tab
-                    SettingsView(store: store)
+                    PricingSettingsView(store: store)
                 }
                 .tabItem { Label("Settings", systemImage: "gear") }
             }
