@@ -1,0 +1,9 @@
+{
+  "services": [
+    { "code": "base_server",  "name": "Server Support",          "unitPrice": 100 },
+    { "code": "base_ws",      "name": "Workstation Support",     "unitPrice": 25  },
+    { "code": "bkup_server",  "name": "Server Cloud Backup",     "unitPrice": 55  },
+    { "code": "bkup_ws",      "name": "Workstation Cloud Backup","unitPrice": 16  },
+    { "code": "email_sec",    "name": "Advanced Email Security", "unitPrice": 8   }
+  ]
+}
