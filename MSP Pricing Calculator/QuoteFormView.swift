@@ -43,6 +43,22 @@ struct QuoteFormView: View {
                             .keyboardType(.numberPad)
                     }
                 }
+
+                Stepper(value: $viewModel.numCameras, in: 0...1000) {
+                    HStack {
+                        Text("Cameras")
+                        Spacer()
+                        TextField("", value: $viewModel.numCameras, formatter: intFormatter)
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.numberPad)
+                    }
+                }
+
+                Picker("NVR", selection: $viewModel.selectedNvr) {
+                    ForEach(0..<viewModel.nvrOptions.count, id: \.self) { idx in
+                        Text(viewModel.nvrOptions[idx]).tag(idx)
+                    }
+                }
             }
 
             // ── Add-ons ───────────────────────────────────────────────────
@@ -50,6 +66,8 @@ struct QuoteFormView: View {
                 Toggle("Server Backup",       isOn: $viewModel.includeServerBackup)
                 Toggle("Workstation Backup",  isOn: $viewModel.includeWSBackup)
                 Toggle("Advanced Email Security", isOn: $viewModel.includeEmailSec)
+                Toggle("Huntress Cybersecurity", isOn: $viewModel.includeHuntress)
+                Toggle("Webroot Cybersecurity",  isOn: $viewModel.includeWebroot)
             }
 
             // ── Total ─────────────────────────────────────────────────────
@@ -59,6 +77,9 @@ struct QuoteFormView: View {
                     Text("Total: \(viewModel.total, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))")
                         .bold()
                     Spacer()
+                }
+                if let pdfURL = viewModel.generatePDF() {
+                    ShareLink("Download Quote", item: pdfURL)
                 }
             }
         }

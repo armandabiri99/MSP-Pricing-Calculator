@@ -11,7 +11,9 @@ import SwiftUI
 struct MSP_Pricing_CalculatorApp: App {
     var body: some Scene {
         WindowGroup {
-            QuoteFormView()
+            NavigationStack {
+                QuoteFormView()
+            }
         }
     }
 }
