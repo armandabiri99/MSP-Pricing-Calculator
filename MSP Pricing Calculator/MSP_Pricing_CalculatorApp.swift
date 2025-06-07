@@ -9,9 +9,21 @@ import SwiftUI
 
 @main
 struct MSP_Pricing_CalculatorApp: App {
+    @StateObject private var store = PricingStore()
+
     var body: some Scene {
         WindowGroup {
-            QuoteFormView()
+            TabView {
+                NavigationStack {
+                    QuoteFormView(store: store)
+                }
+                .tabItem { Label("Quote", systemImage: "doc.plaintext") }
+
+                NavigationStack {
+                    SettingsView(store: store)
+                }
+                .tabItem { Label("Settings", systemImage: "gear") }
+            }
         }
     }
 }

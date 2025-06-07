@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 private let intFormatter: NumberFormatter = {
     let f = NumberFormatter()
@@ -7,10 +8,47 @@ private let intFormatter: NumberFormatter = {
 }()
 
 struct QuoteFormView: View {
-    @StateObject private var viewModel = QuoteViewModel()
+    @ObservedObject var store: PricingStore
+    @StateObject private var viewModel: QuoteViewModel
+    @State private var logoItem: PhotosPickerItem?
+
+    init(store: PricingStore) {
+        self.store = store
+        _viewModel = StateObject(wrappedValue: QuoteViewModel(store: store))
+    }
 
     var body: some View {
         Form {
+            // ── MSP info ───────────────────────────────────────────────
+            Section(header: Text("MSP")) {
+                TextField("Company Name", text: $viewModel.companyName)
+
+                PhotosPicker(selection: $logoItem, matching: .images) {
+                    if let image = viewModel.logoImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .frame(width: 60, height: 60)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        Text("Select Logo")
+                    }
+                }
+                .onChange(of: logoItem) { newItem in
+                    guard let newItem else { return }
+                    Task {
+                        if let data = try? await newItem.loadTransferable(type: Data.self),
+                           let img = UIImage(data: data) {
+                            viewModel.logoImage = img
+                        }
+                    }
+                }
+            }
+
+            // ── Customer info ──────────────────────────────────────────
+            Section(header: Text("Customer")) {
+                TextField("Customer Name", text: $viewModel.customerName)
+            }
+
             // ── Device counts ─────────────────────────────────────────────
             Section(header: Text("Devices")) {
 
@@ -43,6 +81,22 @@ struct QuoteFormView: View {
                             .keyboardType(.numberPad)
                     }
                 }
+
+                Stepper(value: $viewModel.numCameras, in: 0...1000) {
+                    HStack {
+                        Text("Cameras")
+                        Spacer()
+                        TextField("", value: $viewModel.numCameras, formatter: intFormatter)
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.numberPad)
+                    }
+                }
+
+                Picker("NVR", selection: $viewModel.selectedNvr) {
+                    ForEach(0..<viewModel.nvrOptions.count, id: \.self) { idx in
+                        Text(viewModel.nvrOptions[idx]).tag(idx)
+                    }
+                }
             }
 
             // ── Add-ons ───────────────────────────────────────────────────
@@ -50,6 +104,8 @@ struct QuoteFormView: View {
                 Toggle("Server Backup",       isOn: $viewModel.includeServerBackup)
                 Toggle("Workstation Backup",  isOn: $viewModel.includeWSBackup)
                 Toggle("Advanced Email Security", isOn: $viewModel.includeEmailSec)
+                Toggle("Huntress Cybersecurity", isOn: $viewModel.includeHuntress)
+                Toggle("Webroot Cybersecurity",  isOn: $viewModel.includeWebroot)
             }
 
             // ── Total ─────────────────────────────────────────────────────
@@ -60,6 +116,9 @@ struct QuoteFormView: View {
                         .bold()
                     Spacer()
                 }
+                if let pdfURL = viewModel.generatePDF() {
+                    ShareLink("Download Quote", item: pdfURL)
+                }
             }
         }
         .navigationTitle("Quote")
@@ -67,5 +126,5 @@ struct QuoteFormView: View {
 }
 
 #Preview {
-    QuoteFormView()
+    QuoteFormView(store: PricingStore())
 }
