@@ -4,6 +4,16 @@
     { "code": "base_ws",      "name": "Workstation Support",     "unitPrice": 25  },
     { "code": "bkup_server",  "name": "Server Cloud Backup",     "unitPrice": 55  },
     { "code": "bkup_ws",      "name": "Workstation Cloud Backup","unitPrice": 16  },
-    { "code": "email_sec",    "name": "Advanced Email Security", "unitPrice": 8   }
+    { "code": "email_sec",    "name": "Advanced Email Security", "unitPrice": 8   },
+
+    { "code": "huntress",    "name": "Huntress Cybersecurity",      "unitPrice": 6   },
+    { "code": "webroot",     "name": "Webroot Cybersecurity",       "unitPrice": 4   },
+
+    { "code": "nvr_8",       "name": "NVR 8-Port",                  "unitPrice": 250 },
+    { "code": "nvr_16",      "name": "NVR 16-Port",                 "unitPrice": 350 },
+    { "code": "nvr_32",      "name": "NVR 32-Port",                 "unitPrice": 550 },
+    { "code": "nvr_64",      "name": "NVR 64-Port",                 "unitPrice": 750 },
+
+    { "code": "camera",      "name": "Security Camera",             "unitPrice": 120 }
   ]
 }

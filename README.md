@@ -11,6 +11,7 @@ A lightweight SwiftUI iOS application that lets Managed‑Service Providers (MSP
 * **MVVM architecture** – clearly separated *Models*, *ViewModels*, *Views*.
 * **SwiftUI previews** – tweak UI in real time with `#Preview` providers.
 * **iCloud‑ready** – point the JSON loader to a remote URL to update prices over‑the‑air.
+* **Branded PDF quotes** – include your logo, company and customer names in an exported PDF.
 
 ---
 
