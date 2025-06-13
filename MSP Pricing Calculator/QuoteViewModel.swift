@@ -5,130 +5,157 @@
 
 import Foundation
 import SwiftUI
-import UIKit          // UIImage for logo in PDF
+import UIKit               // for UIImage in PDF export
 
-/// View-model that holds the user’s selections and performs all pricing math.
+/// View-model that holds the user’s selections *and* produces the PDF.
+/// Most views bind directly to these `@Published` properties.
+@MainActor
 final class QuoteViewModel: ObservableObject {
 
-    // MARK: – Device counts
-    @Published var numServers        = 0
-    @Published var numWorkstations   = 0
-    @Published var numEmailAccounts  = 0
-    @Published var numCameras        = 0
+    // ─────────────────────────  MSP branding  ────────────────────────────
+    @Published var companyName      = ""
+    @Published var companyAddress   = ""
+    @Published var logoImage: UIImage?
 
-    // MARK: – NVR
-    @Published var selectedNvr       = 0           // 0:none, 1…4 = 8–64-port
-    let nvrOptions = ["None", "8 Port", "16 Port", "32 Port", "64 Port"]
+    // ─────────────────────────  Bill-to section  ─────────────────────────
+    @Published var customerName     = ""
+    @Published var customerAddress  = ""
 
-    // MARK: – Add-ons
+    // ─────────────────────────  Quote metadata  ──────────────────────────
+    @Published var quoteNumber      = ""
+    @Published var quoteDate        = Date()
+    @Published var dueDate          = Calendar.current.date(byAdding: .day, value: 14, to: Date()) ?? Date()
+    @Published var taxRate: Double  = 0.0            // 8.5 %  →  0.085
+
+    // ─────────────────────────  Devices  ────────────────────────────────
+    @Published var numServers       = 0
+    @Published var numWorkstations  = 0
+    @Published var numEmailAccounts = 0
+    @Published var numCameras       = 0
+
+    // NVR
+    let nvrOptions = ["None","8 Port","16 Port","32 Port","64 Port"]
+    @Published var selectedNvr      = 0              // index into `nvrOptions`
+
+    // ─────────────────────────  Add-ons  ────────────────────────────────
     @Published var includeServerBackup = false
     @Published var includeWSBackup     = false
     @Published var includeEmailSec     = false
     @Published var includeHuntress     = false
     @Published var includeWebroot      = false
 
-    // MARK: – Branding
-    @Published var companyName  = ""
-    @Published var customerName = ""
-    @Published var logoImage: UIImage?
+    // ─────────────────────────  Terms  ──────────────────────────────────
+    @Published var terms = "Payment is due in 14 days.\nChecks payable to: Your Company Inc."
 
-    // MARK: – Pricing source
+    // ─────────────────────────  Pricing  ────────────────────────────────
     private let config: PricingConfig
-    init(config: PricingConfig) { self.config = config }
+    init(config: PricingConfig = .load()) { self.config = config }
+
     private func price(for code: String) -> Double { config.price(for: code) }
 
-    // MARK: – Calculated total
-    var total: Double {
-        var value = 0.0
-
-        value += Double(numServers)      * price(for: "base_server")
-        value += Double(numWorkstations) * price(for: "base_ws")
+    /// Sub-total before any taxes.
+    var subTotal: Double {
+        var v = 0.0
+        v += Double(numServers)      * price(for: "base_server")
+        v += Double(numWorkstations) * price(for: "base_ws")
 
         // add-ons
-        if includeServerBackup { value += Double(numServers)      * price(for: "bkup_server") }
-        if includeWSBackup     { value += Double(numWorkstations) * price(for: "bkup_ws")     }
-        if includeEmailSec     { value += Double(numEmailAccounts) * price(for: "email_sec")  }
-        if includeHuntress     { value += Double(numWorkstations + numServers) * price(for: "huntress") }
-        if includeWebroot      { value += Double(numWorkstations + numServers) * price(for: "webroot")  }
+        if includeServerBackup { v += Double(numServers)      * price(for: "bkup_server") }
+        if includeWSBackup     { v += Double(numWorkstations) * price(for: "bkup_ws")     }
+        if includeEmailSec     { v += Double(numEmailAccounts) * price(for: "email_sec")  }
+        if includeHuntress     { v += Double(numWorkstations + numServers) * price(for: "huntress") }
+        if includeWebroot      { v += Double(numWorkstations + numServers) * price(for: "webroot")  }
 
         // cameras / NVR
-        value += Double(numCameras) * price(for: "camera")
+        v += Double(numCameras) * price(for: "camera")
         switch selectedNvr {
-        case 1: value += price(for: "nvr_8")
-        case 2: value += price(for: "nvr_16")
-        case 3: value += price(for: "nvr_32")
-        case 4: value += price(for: "nvr_64")
+        case 1: v += price(for: "nvr_8")
+        case 2: v += price(for: "nvr_16")
+        case 3: v += price(for: "nvr_32")
+        case 4: v += price(for: "nvr_64")
         default: break
         }
-
-        return value
+        return v
     }
 
-    // MARK: – PDF export
+    /// Final amount including tax.
+    var grandTotal: Double { subTotal * (1.0 + taxRate) }
+
+    // MARK: – PDF export (kept simple for brevity)
     func generatePDF() -> URL? {
-        let bounds   = CGRect(x: 0, y: 0, width: 612, height: 792)   // US-Letter @ 72 dpi
-        let renderer = UIGraphicsPDFRenderer(bounds: bounds)
-        let url      = FileManager.default.temporaryDirectory.appendingPathComponent("quote.pdf")
+        let page   = CGRect(x: 0, y: 0, width: 612, height: 792) // US-Letter at 72 dpi
+        let url    = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("quote.pdf")
 
-        do {
-            try renderer.writePDF(to: url) { ctx in
-                ctx.beginPage()
-                var y: CGFloat = 40
+        let pdf = UIGraphicsPDFRenderer(bounds: page).pdfData { ctx in
+            ctx.beginPage()
+            var y: CGFloat = 40
 
-                // logo
-                if let logo = logoImage {
-                    logo.draw(in: CGRect(x: 40, y: y, width: 80, height: 80))
-                    y += 90
-                }
-
-                // title
-                let title = companyName.isEmpty ? "(Name) Quote" : "\(companyName) Quote"
-                (title as NSString).draw(at: CGPoint(x: 40, y: y),
-                                         withAttributes: [.font: UIFont.boldSystemFont(ofSize: 24)])
-                y += 40
-
-                // metadata
-                let df = DateFormatter()
-                df.dateStyle = .medium; df.timeStyle = .short
-                ("Generated: \(df.string(from: Date()))" as NSString)
-                    .draw(at: CGPoint(x: 40, y: y),
-                          withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
-                y += 20
-
-                if !customerName.isEmpty {
-                    ("Customer: \(customerName)" as NSString)
-                        .draw(at: CGPoint(x: 40, y: y),
-                              withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
-                    y += 20
-                }
-
-                func drawLine(_ text: String) {
-                    (text as NSString).draw(at: CGPoint(x: 40, y: y),
-                                            withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
-                    y += 20
-                }
-
-                // detail lines
-                drawLine("Servers: \(numServers)")
-                drawLine("Workstations: \(numWorkstations)")
-                drawLine("Email Accounts: \(numEmailAccounts)")
-                drawLine("Cameras: \(numCameras)")
-                if selectedNvr > 0 { drawLine("NVR: \(nvrOptions[selectedNvr])") }
-                if includeServerBackup { drawLine("Server Backup: Yes") }
-                if includeWSBackup     { drawLine("Workstation Backup: Yes") }
-                if includeEmailSec     { drawLine("Advanced Email Security: Yes") }
-                if includeHuntress     { drawLine("Huntress Cybersecurity: Yes") }
-                if includeWebroot      { drawLine("Webroot Cybersecurity: Yes") }
-
-                y += 20
-                let totalStr = String(format: "Total:  $%.2f", total)
-                (totalStr as NSString)
-                    .draw(at: CGPoint(x: 40, y: y),
-                          withAttributes: [.font: UIFont.boldSystemFont(ofSize: 16)])
+            // logo
+            if let img = logoImage {
+                img.draw(in: CGRect(x: 40, y: y, width: 80, height: 80))
             }
-            return url
-        } catch {
-            return nil
+
+            // header
+            let header = companyName.isEmpty ? "Quote" : "\(companyName) – Quote"
+            (header as NSString).draw(at: CGPoint(x: 140, y: y+25),
+                                      withAttributes: [.font: UIFont.boldSystemFont(ofSize: 24)])
+
+            y += 100
+            ("Customer: \(customerName)" as NSString)
+                .draw(at: CGPoint(x: 40, y: y),
+                      withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
+            y += 20
+            ("Quote #: \(quoteNumber)   Date: \(quoteDate.formatted(date: .abbreviated, time: .omitted))"
+             as NSString)
+                .draw(at: CGPoint(x: 40, y: y),
+                      withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
+            y += 40
+
+            // line items – very compact representation
+            func item(_ label: String, qty: Int, each: Double) {
+                guard qty > 0 else { return }
+                (label as NSString).draw(at: CGPoint(x: 40, y: y),
+                                         withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+                let amount = Double(qty) * each
+                let str = String(format: "$%.2f", amount)
+                (str as NSString).draw(at: CGPoint(x: 500, y: y),
+                                       withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+                y += 18
+            }
+
+            item("Servers ×\(numServers)",          qty: numServers,      each: price(for:"base_server"))
+            item("Workstations ×\(numWorkstations)",qty: numWorkstations, each: price(for:"base_ws"))
+            item("Email Accounts ×\(numEmailAccounts)",qty: numEmailAccounts, each: price(for:"email_sec"))
+            item("Cameras ×\(numCameras)",          qty: numCameras,      each: price(for:"camera"))
+            if selectedNvr > 0 {
+                item("NVR \(nvrOptions[selectedNvr])", qty: 1,
+                     each: price(for:"nvr_\( [8,16,32,64][selectedNvr-1])"))
+            }
+            if includeServerBackup { item("Server Backup", qty: numServers, each: price(for:"bkup_server")) }
+            if includeWSBackup     { item("Workstation Backup", qty: numWorkstations, each: price(for:"bkup_ws")) }
+            if includeHuntress     { item("Huntress", qty: numServers+numWorkstations, each: price(for:"huntress")) }
+            if includeWebroot      { item("Webroot",  qty: numServers+numWorkstations, each: price(for:"webroot")) }
+
+            y += 10
+            ("Subtotal:  \(String(format: "$%.2f", subTotal))" as NSString)
+                .draw(at: CGPoint(x: 380, y: y),
+                      withAttributes: [.font: UIFont.boldSystemFont(ofSize: 14)])
+            y += 18
+            ("Tax (\(Int(taxRate*100)) %): \(String(format:"$%.2f", subTotal*taxRate))" as NSString)
+                .draw(at: CGPoint(x: 380, y: y),
+                      withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
+            y += 18
+            ("TOTAL: \(String(format:"$%.2f", grandTotal))" as NSString)
+                .draw(at: CGPoint(x: 380, y: y),
+                      withAttributes: [.font: UIFont.boldSystemFont(ofSize: 16)])
+
+            y += 40
+            (terms as NSString)
+                .draw(in: CGRect(x: 40, y: y, width: 500, height: 200),
+                      withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
         }
+
+        do { try pdf.write(to: url); return url } catch { return nil }
     }
 }

@@ -6,32 +6,45 @@
 import SwiftUI
 import PhotosUI
 
+// MARK: – Formatters
 private let intFormatter: NumberFormatter = {
     let f = NumberFormatter()
     f.numberStyle = .none
     return f
 }()
 
+private let percentFormatter: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .decimal
+    f.minimumFractionDigits = 0
+    f.maximumFractionDigits = 2
+    return f
+}()
+
+// MARK: – View
 struct QuoteFormView: View {
     // Live pricing comes from the shared store
     @ObservedObject var store: PricingStore
     @StateObject private var viewModel: QuoteViewModel
 
-    // logo picker UI state
+    // Logo-picker state
     @State private var logoItem: PhotosPickerItem?
 
-    // --- init so we can pass the store into the ViewModel -------------
+    // ---- init so we can inject the PricingStore into the VM ------------
     init(store: PricingStore) {
-        self.store      = store
-        _viewModel      = StateObject(wrappedValue: QuoteViewModel(config: store.config))
+        self.store = store
+        _viewModel = StateObject(
+            wrappedValue: QuoteViewModel(config: store.config)
+        )
     }
 
     var body: some View {
         Form {
 
-            // ── MSP info ───────────────────────────────────────────────
+            // ── MSP info ────────────────────────────────────────────────
             Section(header: Text("MSP")) {
-                TextField("Company Name", text: $viewModel.companyName)
+                TextField("Company Name",    text: $viewModel.companyName)
+                TextField("Company Address", text: $viewModel.companyAddress)
 
                 PhotosPicker(selection: $logoItem, matching: .images) {
                     if let img = viewModel.logoImage {
@@ -45,54 +58,87 @@ struct QuoteFormView: View {
                 }
                 .onChange(of: logoItem) { newItem in
                     guard let newItem else { return }
+
                     Task {
                         if let data = try? await newItem.loadTransferable(type: Data.self),
                            let uiImg = UIImage(data: data) {
-                            viewModel.logoImage = uiImg
+                            await MainActor.run {
+                                viewModel.logoImage = uiImg
+                            }
                         }
                     }
                 }
             }
 
-            // ── Customer info ─────────────────────────────────────────
-            Section(header: Text("Customer")) {
-                TextField("Customer Name", text: $viewModel.customerName)
+            // ── Bill-to ────────────────────────────────────────────────
+            Section(header: Text("Bill To")) {
+                TextField("Customer Name",    text: $viewModel.customerName)
+                TextField("Customer Address", text: $viewModel.customerAddress)
             }
 
-            // ── Device counts ────────────────────────────────────────
+            // ── Quote meta data ────────────────────────────────────────
+            Section(header: Text("Quote Details")) {
+                TextField("Quote #", text: $viewModel.quoteNumber)
+                    .keyboardType(.numbersAndPunctuation)
+
+                DatePicker("Quote Date", selection: $viewModel.quoteDate,
+                           displayedComponents: .date)
+                DatePicker("Due Date",   selection: $viewModel.dueDate,
+                           displayedComponents: .date)
+
+                HStack {
+                    Text("Tax Rate (%)")
+                    Spacer()
+                    TextField("0", value: Binding(
+                        get: { viewModel.taxRate * 100 },
+                        set: { viewModel.taxRate = $0 / 100 }),
+                        formatter: percentFormatter)
+                        .multilineTextAlignment(.trailing)
+                        .keyboardType(.decimalPad)
+                        .frame(width: 70)
+                }
+            }
+
+            // ── Terms & notes ──────────────────────────────────────────
+            Section(header: Text("Terms & Notes")) {
+                TextEditor(text: $viewModel.terms)
+                    .frame(minHeight: 80)
+            }
+
+            // ── Device counts ──────────────────────────────────────────
             Section(header: Text("Devices")) {
-                deviceStepper("Servers",       value: $viewModel.numServers)
-                deviceStepper("Workstations",  value: $viewModel.numWorkstations)
-                deviceStepper("Email Accounts",value: $viewModel.numEmailAccounts)
-                deviceStepper("Cameras",       value: $viewModel.numCameras)
+                stepper("Servers",        $viewModel.numServers)
+                stepper("Workstations",   $viewModel.numWorkstations)
+                stepper("Email Accounts", $viewModel.numEmailAccounts)
+                stepper("Cameras",        $viewModel.numCameras)
 
                 Picker("NVR", selection: $viewModel.selectedNvr) {
-                    ForEach(0..<viewModel.nvrOptions.count, id: \.self) { idx in
+                    ForEach(0 ..< viewModel.nvrOptions.count, id: \.self) { idx in
                         Text(viewModel.nvrOptions[idx]).tag(idx)
                     }
                 }
             }
 
-            // ── Add-ons ───────────────────────────────────────────────
+            // ── Add-ons ────────────────────────────────────────────────
             Section(header: Text("Add-ons")) {
-                Toggle("Server Backup",       isOn: $viewModel.includeServerBackup)
-                Toggle("Workstation Backup",  isOn: $viewModel.includeWSBackup)
+                Toggle("Server Backup",           isOn: $viewModel.includeServerBackup)
+                Toggle("Workstation Backup",      isOn: $viewModel.includeWSBackup)
                 Toggle("Advanced Email Security", isOn: $viewModel.includeEmailSec)
                 Toggle("Huntress Cybersecurity",  isOn: $viewModel.includeHuntress)
                 Toggle("Webroot Cybersecurity",   isOn: $viewModel.includeWebroot)
             }
 
-            // ── Total & PDF ───────────────────────────────────────────
+            // ── Totals & PDF download ─────────────────────────────────────
             Section {
                 HStack {
                     Spacer()
-                    Text("Total: \(viewModel.total, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))")
+                    Text("Total: \(viewModel.grandTotal, format: .currency(code: Locale.current.currency?.identifier ?? "USD"))")
                         .bold()
                     Spacer()
                 }
-
-                if let pdfURL = viewModel.generatePDF() {
-                    ShareLink("Download Quote", item: pdfURL)
+                
+                if let pdf = viewModel.generatePDF() {
+                    ShareLink("Download Quote", item: pdf)
                 }
             }
         }
@@ -101,8 +147,8 @@ struct QuoteFormView: View {
 
     // MARK: helper
     @ViewBuilder
-    private func deviceStepper(_ label: String, value: Binding<Int>) -> some View {
-        Stepper(value: value, in: 0...1000) {
+    private func stepper(_ label: String, _ value: Binding<Int>) -> some View {
+        Stepper(value: value, in: 0 ... 1000) {
             HStack {
                 Text(label)
                 Spacer()
@@ -114,6 +160,9 @@ struct QuoteFormView: View {
     }
 }
 
+// MARK: – Preview
 #Preview {
-    QuoteFormView(store: PricingStore())
+    NavigationStack {
+        QuoteFormView(store: PricingStore())
+    }
 }
