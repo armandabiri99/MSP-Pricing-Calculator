@@ -119,4 +119,6 @@ git push origin feature/my-awesome-feature
 
 📄 License
 
-This project is licensed under the MIT License – see LICENSE for details.
+This project is proprietary software owned by **Network Experts, Inc.**. All rights are reserved.
+
+You may not use, copy, distribute, or modify any part of this project without express written permission from Network Experts, Inc.
